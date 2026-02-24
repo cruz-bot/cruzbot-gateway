@@ -146,22 +146,30 @@ const plugin = {
             output += "_No canon log directory found at os/canon/log/_\n";
           } else {
             const files = readdirSync(canonLogDir)
-              .filter((f) => f.endsWith(".md") || f.endsWith(".json"))
+              .filter((f) => f.endsWith(".jsonl"))
               .sort()
-              .slice(-10); // last 10
+              .slice(-3); // last 3 months
 
             if (files.length === 0) {
               output += "_No classification logs found._\n";
             } else {
-              output += `**Recent classifications** (${files.length}):\n`;
-              for (const file of files) {
+              // Read last 5 classifications across all log files
+              const allEntries: Array<{ ts: string; issueId: string; classification: string }> = [];
+              for (const file of files.reverse()) {
                 try {
-                  const content = readFileSync(join(canonLogDir, file), "utf-8");
-                  const firstLine = content.split("\n")[0].slice(0, 120);
-                  output += `• \`${file}\` — ${firstLine}\n`;
-                } catch {
-                  output += `• \`${file}\` — _(unreadable)_\n`;
-                }
+                  const lines = readFileSync(join(canonLogDir, file), "utf-8").trim().split("\n");
+                  for (const line of lines.reverse()) {
+                    if (allEntries.length >= 5) break;
+                    try {
+                      const entry = JSON.parse(line);
+                      allEntries.push({ ts: entry.ts, issueId: entry.issueId, classification: entry.classification });
+                    } catch { /* skip malformed */ }
+                  }
+                } catch { /* skip unreadable */ }
+              }
+              output += `**Recent classifications** (last ${allEntries.length}):\n`;
+              for (const e of allEntries) {
+                output += `• ${e.ts?.slice(0, 16)} — \`${e.issueId}\` → **${e.classification}**\n`;
               }
             }
           }

@@ -160,7 +160,11 @@ class MemoryDB {
 // OpenAI Embeddings
 // ============================================================================
 
-class Embeddings {
+interface EmbeddingProvider {
+  embed(text: string): Promise<number[]>;
+}
+
+class Embeddings implements EmbeddingProvider {
   private client: OpenAI;
 
   constructor(
@@ -176,6 +180,35 @@ class Embeddings {
       input: text,
     });
     return response.data[0].embedding;
+  }
+}
+
+class GeminiEmbeddings implements EmbeddingProvider {
+  constructor(
+    private apiKey: string,
+    private model: string,
+    private dimensions: number = 768,
+  ) {}
+
+  async embed(text: string): Promise<number[]> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": this.apiKey,
+      },
+      body: JSON.stringify({
+        content: { parts: [{ text }] },
+        outputDimensionality: this.dimensions,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Gemini embedding failed: ${response.status} ${body}`);
+    }
+    const data = (await response.json()) as { embedding: { values: number[] } };
+    return data.embedding.values;
   }
 }
 
@@ -293,9 +326,12 @@ const memoryPlugin = {
   register(api: OpenClawPluginApi) {
     const cfg = memoryConfigSchema.parse(api.pluginConfig);
     const resolvedDbPath = api.resolvePath(cfg.dbPath!);
-    const vectorDim = vectorDimsForModel(cfg.embedding.model ?? "text-embedding-3-small");
+    const vectorDim = cfg.embedding.dimensions ?? vectorDimsForModel(cfg.embedding.model ?? "text-embedding-3-small");
     const db = new MemoryDB(resolvedDbPath, vectorDim);
-    const embeddings = new Embeddings(cfg.embedding.apiKey, cfg.embedding.model!);
+    const embeddings: EmbeddingProvider =
+      cfg.embedding.provider === "gemini"
+        ? new GeminiEmbeddings(cfg.embedding.apiKey, cfg.embedding.model!, vectorDim)
+        : new Embeddings(cfg.embedding.apiKey, cfg.embedding.model!);
 
     api.logger.info(`memory-lancedb: plugin registered (db: ${resolvedDbPath}, lazy init)`);
 
