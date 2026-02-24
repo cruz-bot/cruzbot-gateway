@@ -2,16 +2,20 @@
   "id": "memory-lancedb",
   "kind": "memory",
   "uiHints": {
+    "embedding.provider": {
+      "label": "Embedding Provider",
+      "help": "Which embedding provider to use (openai or gemini)"
+    },
     "embedding.apiKey": {
-      "label": "OpenAI API Key",
+      "label": "API Key",
       "sensitive": true,
-      "placeholder": "sk-proj-...",
-      "help": "API key for OpenAI embeddings (or use ${OPENAI_API_KEY})"
+      "placeholder": "sk-proj-... or Gemini API key",
+      "help": "API key for embeddings (or use ${OPENAI_API_KEY} / ${GEMINI_API_KEY})"
     },
     "embedding.model": {
       "label": "Embedding Model",
-      "placeholder": "text-embedding-3-small",
-      "help": "OpenAI embedding model to use"
+      "placeholder": "gemini-embedding-001",
+      "help": "Embedding model to use (e.g. gemini-embedding-001, text-embedding-3-small)"
     },
     "dbPath": {
       "label": "Database Path",
@@ -41,12 +45,19 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["openai", "gemini"],
+            "default": "gemini"
+          },
           "apiKey": {
             "type": "string"
           },
           "model": {
-            "type": "string",
-            "enum": ["text-embedding-3-small", "text-embedding-3-large"]
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "number"
           }
         },
         "required": ["apiKey"]

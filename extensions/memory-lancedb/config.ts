@@ -4,9 +4,10 @@ import { join } from "node:path";
 
 export type MemoryConfig = {
   embedding: {
-    provider: "openai";
+    provider: "openai" | "gemini";
     model?: string;
     apiKey: string;
+    dimensions?: number;
   };
   dbPath?: string;
   autoCapture?: boolean;
@@ -17,7 +18,8 @@ export type MemoryConfig = {
 export const MEMORY_CATEGORIES = ["preference", "fact", "decision", "entity", "other"] as const;
 export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
 
-const DEFAULT_MODEL = "text-embedding-3-small";
+const DEFAULT_OPENAI_MODEL = "text-embedding-3-small";
+const DEFAULT_GEMINI_MODEL = "gemini-embedding-001";
 export const DEFAULT_CAPTURE_MAX_CHARS = 500;
 const LEGACY_STATE_DIRS: string[] = [];
 
@@ -51,6 +53,7 @@ const DEFAULT_DB_PATH = resolveDefaultDbPath();
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
   "text-embedding-3-small": 1536,
   "text-embedding-3-large": 3072,
+  "gemini-embedding-001": 768,
 };
 
 function assertAllowedKeys(value: Record<string, unknown>, allowed: string[], label: string) {
@@ -79,12 +82,6 @@ function resolveEnvVars(value: string): string {
   });
 }
 
-function resolveEmbeddingModel(embedding: Record<string, unknown>): string {
-  const model = typeof embedding.model === "string" ? embedding.model : DEFAULT_MODEL;
-  vectorDimsForModel(model);
-  return model;
-}
-
 export const memoryConfigSchema = {
   parse(value: unknown): MemoryConfig {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -101,9 +98,26 @@ export const memoryConfigSchema = {
     if (!embedding || typeof embedding.apiKey !== "string") {
       throw new Error("embedding.apiKey is required");
     }
-    assertAllowedKeys(embedding, ["apiKey", "model"], "embedding config");
+    assertAllowedKeys(embedding, ["provider", "apiKey", "model", "dimensions"], "embedding config");
 
-    const model = resolveEmbeddingModel(embedding);
+    const provider =
+      typeof embedding.provider === "string" &&
+      (embedding.provider === "openai" || embedding.provider === "gemini")
+        ? (embedding.provider as "openai" | "gemini")
+        : "gemini";
+
+    const defaultModel = provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL;
+    const model = typeof embedding.model === "string" ? embedding.model : defaultModel;
+    // Validate dimensions for known models; allow unknown models with explicit dimensions
+    const dimensions =
+      typeof embedding.dimensions === "number"
+        ? embedding.dimensions
+        : EMBEDDING_DIMENSIONS[model];
+    if (!dimensions) {
+      throw new Error(
+        `Unknown embedding model "${model}". Provide embedding.dimensions explicitly.`,
+      );
+    }
 
     const captureMaxChars =
       typeof cfg.captureMaxChars === "number" ? Math.floor(cfg.captureMaxChars) : undefined;
@@ -116,9 +130,10 @@ export const memoryConfigSchema = {
 
     return {
       embedding: {
-        provider: "openai",
+        provider,
         model,
         apiKey: resolveEnvVars(embedding.apiKey),
+        dimensions,
       },
       dbPath: typeof cfg.dbPath === "string" ? cfg.dbPath : DEFAULT_DB_PATH,
       autoCapture: cfg.autoCapture === true,
@@ -127,16 +142,20 @@ export const memoryConfigSchema = {
     };
   },
   uiHints: {
+    "embedding.provider": {
+      label: "Embedding Provider",
+      help: "Which embedding provider to use (openai or gemini)",
+    },
     "embedding.apiKey": {
-      label: "OpenAI API Key",
+      label: "API Key",
       sensitive: true,
-      placeholder: "sk-proj-...",
-      help: "API key for OpenAI embeddings (or use ${OPENAI_API_KEY})",
+      placeholder: "sk-proj-... or Gemini API key",
+      help: "API key for embeddings (or use ${OPENAI_API_KEY} / ${GEMINI_API_KEY})",
     },
     "embedding.model": {
       label: "Embedding Model",
-      placeholder: DEFAULT_MODEL,
-      help: "OpenAI embedding model to use",
+      placeholder: DEFAULT_GEMINI_MODEL,
+      help: "Embedding model to use (e.g. gemini-embedding-001, text-embedding-3-small)",
     },
     dbPath: {
       label: "Database Path",
