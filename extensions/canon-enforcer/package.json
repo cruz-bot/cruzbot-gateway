@@ -1,0 +1,9 @@
+{
+  "name": "canon-enforcer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Canon Workflow Enforcer — injects preflight reminders, OS context, and logs subagent completions",
+  "main": "index.ts",
+  "dependencies": {}
+}

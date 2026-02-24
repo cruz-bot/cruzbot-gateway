@@ -1,0 +1,25 @@
+{
+  "id": "canon-enforcer",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["warn", "block"],
+        "default": "warn",
+        "description": "warn = inject reminder, block = prevent execution (future)"
+      },
+      "injectOsReadme": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inject os/README.md into every session context"
+      },
+      "logSubagentCompletions": {
+        "type": "boolean",
+        "default": true,
+        "description": "Log subagent completions to logs/subagent-completions.jsonl"
+      }
+    }
+  }
+}
